@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS messages (
   ai_confidence DECIMAL(5,2) NULL,
   created_at DATETIME NOT NULL,
   INDEX(conversation_id),
-  INDEX(external_message_id),
+  UNIQUE KEY uq_external_message(external_message_id),
   CONSTRAINT fk_messages_conv FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
