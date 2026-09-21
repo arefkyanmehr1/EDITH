@@ -71,6 +71,12 @@ if (!$conversation) {
 }
 
 $externalId = (string)($messaging['message']['mid'] ?? '');
+if ($externalId !== '') {
+    $dup = $pdo->prepare('SELECT id FROM messages WHERE external_message_id=? LIMIT 1');
+    $dup->execute([$externalId]);
+    if ($dup->fetch()) json_response(['ok'=>true,'duplicate'=>true]);
+}
+
 $stmt = $pdo->prepare('INSERT INTO messages (conversation_id,sender_type,message_text,external_message_id,ai_generated,created_at) VALUES (?,"customer",?,?,0,NOW())');
 $stmt->execute([$conversationId,$text,$externalId ?: null]);
 
@@ -78,10 +84,19 @@ $settingsStmt = $pdo->prepare('SELECT * FROM ai_settings WHERE user_id=? LIMIT 1
 $settingsStmt->execute([(int)$account['user_id']]);
 $settings = $settingsStmt->fetch();
 
-if ($settings && (int)$settings['ai_enabled'] === 1 && !empty($settings['gemini_api_key_encrypted'])) {
+$knowledgeStmt = $pdo->prepare('SELECT title,content,type FROM ai_knowledge WHERE user_id=? AND is_active=1 ORDER BY priority DESC,id DESC');
+$knowledgeStmt->execute([(int)$account['user_id']]);
+$knowledge = '';
+foreach ($knowledgeStmt->fetchAll() as $item) {
+    $knowledge .= "\n[" . $item['type'] . "] " . $item['title'] . ":\n" . $item['content'];
+}
+$conversationEnabled = $conversation ? (int)$conversation['ai_enabled'] === 1 : true;
+$fullPrompt = trim((string)($settings['system_prompt'] ?? '') . "\n\nBusiness knowledge:" . $knowledge);
+
+if ($conversationEnabled && $settings && (int)$settings['ai_enabled'] === 1 && !empty($settings['gemini_api_key_encrypted'])) {
     try {
         $apiKey = decrypt_secret($settings['gemini_api_key_encrypted']);
-        $reply = generate_gemini_reply($text,$apiKey,$settings['response_model'] ?: DEFAULT_RESPONSE_MODEL,$settings['system_prompt'] ?: '');
+        $reply = generate_gemini_reply($text,$apiKey,$settings['response_model'] ?: DEFAULT_RESPONSE_MODEL,$fullPrompt);
         $token = decrypt_secret($account['access_token_encrypted']);
         $sent = instagram_send_message((string)$account['instagram_user_id'],$senderId,$reply,$token);
         $sentId = (string)($sent['message_id'] ?? $sent['id'] ?? '');
