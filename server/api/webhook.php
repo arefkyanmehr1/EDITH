@@ -50,7 +50,7 @@ if ($senderId === '' || $text === '') {
 $stmt = $pdo->prepare('SELECT * FROM instagram_accounts WHERE instagram_user_id=? AND is_active=1 LIMIT 1');
 $stmt->execute([$recipientId]);
 $account = $stmt->fetch();
-if (!$account && $entry['id'] ?? null) {
+if (!$account && !empty($entry['id'])) {
     $stmt = $pdo->prepare('SELECT * FROM instagram_accounts WHERE instagram_user_id=? AND is_active=1 LIMIT 1');
     $stmt->execute([(string)$entry['id']]);
     $account = $stmt->fetch();
