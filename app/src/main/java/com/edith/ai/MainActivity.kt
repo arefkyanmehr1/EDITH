@@ -1,6 +1,10 @@
 package com.edith.ai
 
 import android.os.Bundle
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -22,6 +26,7 @@ import androidx.compose.ui.unit.dp
 private val Bg = Color(0xFF0B0D10)
 private val Card = Color(0xFF14171C)
 private val Accent = Color(0xFFE9EDF2)
+private val httpClient = OkHttpClient()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -123,18 +128,55 @@ private fun InstagramScreen() {
 
 @Composable
 private fun AIBrainScreen() {
+    var apiKey by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("Not tested") }
+    var testing by remember { mutableStateOf(false) }
+
     Screen("AI Brain") {
         MetricCard("Response model", "Gemini 3.1 Flash-Lite", Modifier.fillMaxWidth())
         MetricCard("Analysis model", "Gemini 3.8 Flash", Modifier.fillMaxWidth())
+
         OutlinedTextField(
-            value = "",
-            onValueChange = {},
+            value = apiKey,
+            onValueChange = { apiKey = it },
             label = { Text("Gemini API Key") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
         )
-        Button(onClick = { }) { Text("Test & Save API Key") }
-        Text("The key is intended to belong to the app user and will be stored securely on-device before backend integration.", color = Color.LightGray)
+
+        Button(
+            enabled = !testing,
+            onClick = {
+                testing = true
+                status = "Testing backend…"
+                Thread {
+                    try {
+                        val request = Request.Builder()
+                            .url(BuildConfig.API_BASE_URL + "health.php")
+                            .get()
+                            .build()
+                        httpClient.newCall(request).execute().use { result ->
+                            status = if (result.isSuccessful) "Backend connected ✓"
+                            else "Backend HTTP " + result.code
+                        }
+                    } catch (_: Exception) {
+                        status = "Connection failed"
+                    } finally {
+                        testing = false
+                    }
+                }.start()
+            }
+        ) {
+            Text(if (testing) "Testing…" else "Test Backend Connection")
+        }
+
+        Text("Backend: " + BuildConfig.API_BASE_URL, color = Color.LightGray)
+        Text("Status: " + status, fontWeight = FontWeight.Bold)
+        Text(
+            "The Gemini key belongs to the app user. It is not embedded in the application source.",
+            color = Color.LightGray
+        )
     }
 }
 
